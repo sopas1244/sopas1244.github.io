@@ -1,0 +1,1581 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Status Explorer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+        }
+        .status-item {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .status-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .avatar {
+            border: 2px solid #25D366;
+        }
+        .avatar.viewed {
+            border: 2px solid #ccc;
+        }
+        .status-ring {
+            position: relative;
+        }
+        .status-ring::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            border-radius: 50%;
+            border: 2px solid #25D366;
+            opacity: 0.8;
+        }
+        .status-ring.viewed::before {
+            border: 2px solid #ccc;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .debug-info {
+            display: none;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <!-- Header -->
+            <div class="bg-[#128C7E] text-white p-4 flex justify-between items-center">
+                <h1 class="text-2xl font-bold">explorador de estados de WhatsApp.....</h1>
+                <div class="flex space-x-2">
+                    <button id="debug-toggle" class="px-3 py-1 bg-[#075E54] rounded-md text-sm">Debug</button>
+                    <button id="refresh-btn" class="px-3 py-1 bg-[#075E54] rounded-md text-sm">Actualizar</button>
+                </div>
+            </div>
+            
+            <!-- Tabs -->
+            <div class="bg-[#075E54] text-white flex">
+                <button class="tab-btn py-3 px-6 focus:outline-none active" data-tab="explore">Explorar</button>
+                <button class="tab-btn py-3 px-6 focus:outline-none" data-tab="analytics">Análisis</button>
+                <button class="tab-btn py-3 px-6 focus:outline-none" data-tab="simulation">Simulación</button>
+                <button class="tab-btn py-3 px-6 focus:outline-none" data-tab="learn">Aprender</button>
+            </div>
+            
+            <!-- Debug Info -->
+            <div id="debug-info" class="debug-info m-4"></div>
+            
+            <!-- Explore Tab Content -->
+            <div id="explore" class="tab-content active p-4">
+                <div class="mb-6">
+                    <h2 class="text-xl font-semibold mb-4">Estados Recientes</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="status-grid">
+                        <!-- Status items will be populated here -->
+                    </div>
+                </div>
+                
+                <div class="mt-8">
+                    <h2 class="text-xl font-semibold mb-4">Estado Seleccionado</h2>
+                    <div id="selected-status" class="bg-gray-100 rounded-lg p-4 min-h-[200px] flex items-center justify-center text-gray-500">
+                        Selecciona un estado para ver detalles
+                    </div>
+                    
+                    <div id="status-details" class="mt-4 hidden">
+                        <div class="bg-white rounded-lg shadow p-4">
+                            <h3 class="font-semibold text-lg mb-2">Estadísticas de Visualización</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                <div class="bg-gray-100 p-3 rounded-lg">
+                                    <p class="text-sm text-gray-500">Vistas</p>
+                                    <p class="text-2xl font-bold" id="view-count">0</p>
+                                </div>
+                                <div class="bg-gray-100 p-3 rounded-lg">
+                                    <p class="text-sm text-gray-500">Tiempo promedio</p>
+                                    <p class="text-2xl font-bold" id="avg-time">0s</p>
+                                </div>
+                                <div class="bg-gray-100 p-3 rounded-lg">
+                                    <p class="text-sm text-gray-500">Interacciones</p>
+                                    <p class="text-2xl font-bold" id="interaction-count">0</p>
+                                </div>
+                            </div>
+                            
+                            <div class="h-[200px]">
+                                <canvas id="viewTimeChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Analytics Tab Content -->
+            <div id="analytics" class="tab-content p-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <h3 class="font-semibold text-lg mb-4">Actividad por Hora del Día</h3>
+                        <div class="h-[300px]">
+                            <canvas id="hourlyActivityChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <h3 class="font-semibold text-lg mb-4">Tipos de Contenido</h3>
+                        <div class="h-[300px]">
+                            <canvas id="contentTypeChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <h3 class="font-semibold text-lg mb-4">Engagement por Contacto</h3>
+                        <div class="h-[300px]">
+                            <canvas id="contactEngagementChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <h3 class="font-semibold text-lg mb-4">Tendencia de Actividad</h3>
+                        <div class="h-[300px]">
+                            <canvas id="activityTrendChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Simulation Tab Content -->
+            <div id="simulation" class="tab-content p-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="md:col-span-1 bg-white rounded-lg shadow p-4">
+                        <h3 class="font-semibold text-lg mb-4">Parámetros de Simulación</h3>
+                        
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Tipo de Contenido</label>
+                            <select id="content-type" class="w-full p-2 border rounded-md">
+                                <option value="text">Texto</option>
+                                <option value="image">Imagen</option>
+                                <option value="video">Video</option>
+                                <option value="link">Enlace</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Hora de Publicación</label>
+                            <select id="post-time" class="w-full p-2 border rounded-md">
+                                <option value="morning">Mañana (6-12)</option>
+                                <option value="afternoon">Tarde (12-18)</option>
+                                <option value="evening">Noche (18-24)</option>
+                                <option value="night">Madrugada (0-6)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Duración (segundos)</label>
+                            <input type="range" id="duration" min="5" max="60" value="15" class="w-full">
+                            <div class="flex justify-between text-xs text-gray-500">
+                                <span>5s</span>
+                                <span id="duration-value">15s</span>
+                                <span>60s</span>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Interactividad</label>
+                            <select id="interactivity" class="w-full p-2 border rounded-md">
+                                <option value="low">Baja (solo visualización)</option>
+                                <option value="medium">Media (preguntas/encuestas)</option>
+                                <option value="high">Alta (llamada a la acción)</option>
+                            </select>
+                        </div>
+                        
+                        <button id="run-simulation" class="w-full bg-[#128C7E] text-white py-2 rounded-md hover:bg-[#075E54] transition-colors">
+                            Ejecutar Simulación
+                        </button>
+                    </div>
+                    
+                    <div class="md:col-span-2 bg-white rounded-lg shadow p-4">
+                        <h3 class="font-semibold text-lg mb-4">Resultados de la Simulación</h3>
+                        
+                        <div id="simulation-loading" class="hidden flex justify-center items-center h-[400px]">
+                            <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#128C7E]"></div>
+                        </div>
+                        
+                        <div id="simulation-results" class="hidden">
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                <div class="bg-gray-100 p-3 rounded-lg">
+                                    <p class="text-sm text-gray-500">Vistas Estimadas</p>
+                                    <p class="text-2xl font-bold" id="sim-views">0</p>
+                                </div>
+                                <div class="bg-gray-100 p-3 rounded-lg">
+                                    <p class="text-sm text-gray-500">Tiempo Promedio</p>
+                                    <p class="text-2xl font-bold" id="sim-avg-time">0s</p>
+                                </div>
+                                <div class="bg-gray-100 p-3 rounded-lg">
+                                    <p class="text-sm text-gray-500">Respuestas</p>
+                                    <p class="text-2xl font-bold" id="sim-replies">0</p>
+                                </div>
+                                <div class="bg-gray-100 p-3 rounded-lg">
+                                    <p class="text-sm text-gray-500">Engagement</p>
+                                    <p class="text-2xl font-bold" id="sim-engagement">0%</p>
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <h4 class="font-medium text-md mb-2">Distribución de Vistas</h4>
+                                    <div class="h-[200px]">
+                                        <canvas id="viewDistributionChart"></canvas>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <h4 class="font-medium text-md mb-2">Comparación con Promedios</h4>
+                                    <div class="h-[200px]">
+                                        <canvas id="comparisonChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-6 p-4 bg-gray-100 rounded-lg">
+                                <h4 class="font-medium text-md mb-2">Recomendaciones</h4>
+                                <ul id="recommendations" class="list-disc pl-5 space-y-1 text-sm"></ul>
+                            </div>
+                        </div>
+                        
+                        <div id="simulation-placeholder" class="flex justify-center items-center h-[400px] text-gray-400">
+                            Configura los parámetros y ejecuta la simulación para ver resultados
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Learn Tab Content -->
+            <div id="learn" class="tab-content p-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="md:col-span-1">
+                        <div class="bg-white rounded-lg shadow p-4 mb-6">
+                            <h3 class="font-semibold text-lg mb-4">Conceptos Básicos</h3>
+                            <ul class="space-y-2">
+                                <li class="concept-item cursor-pointer p-2 hover:bg-gray-100 rounded-md" data-concept="what-is-status">¿Qué son los estados?</li>
+                                <li class="concept-item cursor-pointer p-2 hover:bg-gray-100 rounded-md" data-concept="status-lifecycle">Ciclo de vida de un estado</li>
+                                <li class="concept-item cursor-pointer p-2 hover:bg-gray-100 rounded-md" data-concept="privacy">Privacidad y visibilidad</li>
+                                <li class="concept-item cursor-pointer p-2 hover:bg-gray-100 rounded-md" data-concept="content-types">Tipos de contenido</li>
+                                <li class="concept-item cursor-pointer p-2 hover:bg-gray-100 rounded-md" data-concept="engagement">Engagement y métricas</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="bg-white rounded-lg shadow p-4">
+                            <h3 class="font-semibold text-lg mb-4">Estrategias Efectivas</h3>
+                            <ul class="space-y-2">
+                                <li class="strategy-item cursor-pointer p-2 hover:bg-gray-100 rounded-md" data-strategy="timing">Momento óptimo de publicación</li>
+                                <li class="strategy-item cursor-pointer p-2 hover:bg-gray-100 rounded-md" data-strategy="content-quality">Calidad vs. Cantidad</li>
+                                <li class="strategy-item cursor-pointer p-2 hover:bg-gray-100 rounded-md" data-strategy="storytelling">Narrativa y storytelling</li>
+                                <li class="strategy-item cursor-pointer p-2 hover:bg-gray-100 rounded-md" data-strategy="interaction">Fomentar la interacción</li>
+                                <li class="strategy-item cursor-pointer p-2 hover:bg-gray-100 rounded-md" data-strategy="consistency">Consistencia y frecuencia</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="md:col-span-2">
+                        <div class="bg-white rounded-lg shadow p-4">
+                            <div id="concept-content" class="hidden">
+                                <h3 id="concept-title" class="font-semibold text-xl mb-4"></h3>
+                                <div id="concept-description" class="prose max-w-none"></div>
+                            </div>
+                            
+                            <div id="strategy-content" class="hidden">
+                                <h3 id="strategy-title" class="font-semibold text-xl mb-4"></h3>
+                                <div id="strategy-description" class="prose max-w-none"></div>
+                            </div>
+                            
+                            <div id="learn-placeholder" class="flex justify-center items-center h-[400px] text-gray-400">
+                                Selecciona un concepto o estrategia para aprender más
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Debug functionality
+        const debugToggle = document.getElementById('debug-toggle');
+        const debugInfo = document.getElementById('debug-info');
+        
+        debugToggle.addEventListener('click', () => {
+            if (debugInfo.style.display === 'none' || debugInfo.style.display === '') {
+                debugInfo.style.display = 'block';
+                logDebug('Debug mode enabled');
+            } else {
+                debugInfo.style.display = 'none';
+            }
+        });
+        
+        function logDebug(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            debugInfo.appendChild(logEntry);
+            debugInfo.scrollTop = debugInfo.scrollHeight;
+            
+            // Also log to console for developer debugging
+            console.log(`[DEBUG] ${message}`);
+        }
+        
+        // Tab functionality
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const tabId = button.getAttribute('data-tab');
+                
+                // Update active tab button
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                button.classList.add('active');
+                
+                // Show selected tab content
+                tabContents.forEach(content => {
+                    content.classList.remove('active');
+                    if (content.id === tabId) {
+                        content.classList.add('active');
+                        
+                        // Initialize charts when tab becomes visible
+                        if (tabId === 'analytics') {
+                            try {
+                                initAnalyticsCharts();
+                                logDebug('Analytics charts initialized');
+                            } catch (error) {
+                                logDebug(`Error initializing analytics charts: ${error.message}`);
+                            }
+                        }
+                    }
+                });
+                
+                logDebug(`Switched to ${tabId} tab`);
+            });
+        });
+        
+        // Status data model
+        const statusData = [
+            {
+                id: 1,
+                name: "Dios Pritegeme",
+                avatar: "/api/placeholder/48/48",
+                timestamp: new Date(new Date().setHours(new Date().getHours() - 2)),
+                type: "text",
+                content: "Bendiciones para todos 🙏",
+                viewed: true,
+                viewCount: 28,
+                avgViewTime: 5.2,
+                interactions: 3
+            },
+            {
+                id: 2,
+                name: "Marce",
+                avatar: "/api/placeholder/48/48",
+                timestamp: new Date(new Date().setHours(new Date().getHours() - 3)),
+                type: "image",
+                content: "Disfrutando del día ☀️",
+                viewed: true,
+                viewCount: 42,
+                avgViewTime: 8.7,
+                interactions: 7
+            },
+            {
+                id: 3,
+                name: "Juanda 35 Palms",
+                avatar: "/api/placeholder/48/48",
+                timestamp: new Date(new Date().setHours(new Date().getHours() - 4)),
+                type: "video",
+                content: "Nuevo proyecto 🎵",
+                viewed: false,
+                viewCount: 56,
+                avgViewTime: 12.3,
+                interactions: 15
+            },
+            {
+                id: 4,
+                name: "Adri Tktk",
+                avatar: "/api/placeholder/48/48",
+                timestamp: new Date(new Date().setHours(new Date().getHours() - 5)),
+                type: "image",
+                content: "Look del día 💅",
+                viewed: false,
+                viewCount: 89,
+                avgViewTime: 7.5,
+                interactions: 23
+            },
+            {
+                id: 5,
+                name: "Mellizo",
+                avatar: "/api/placeholder/48/48",
+                timestamp: new Date(new Date().setHours(new Date().getHours() - 6)),
+                type: "text",
+                content: "Necesito recomendaciones de restaurantes 🍔",
+                viewed: true,
+                viewCount: 31,
+                avgViewTime: 4.8,
+                interactions: 12
+            },
+            {
+                id: 6,
+                name: "Jorge Tobón",
+                avatar: "/api/placeholder/48/48",
+                timestamp: new Date(new Date().setHours(new Date().getHours() - 7)),
+                type: "link",
+                content: "Miren este artículo interesante 👀",
+                viewed: false,
+                viewCount: 17,
+                avgViewTime: 3.2,
+                interactions: 2
+            },
+            {
+                id: 7,
+                name: "Castillo",
+                avatar: "/api/placeholder/48/48",
+                timestamp: new Date(new Date().setHours(new Date().getHours() - 8)),
+                type: "video",
+                content: "Partido de hoy ⚽",
+                viewed: true,
+                viewCount: 64,
+                avgViewTime: 15.7,
+                interactions: 18
+            },
+            {
+                id: 8,
+                name: "Karelis",
+                avatar: "/api/placeholder/48/48",
+                timestamp: new Date(new Date().setHours(new Date().getHours() - 9)),
+                type: "image",
+                content: "Nueva receta 🍲",
+                viewed: false,
+                viewCount: 47,
+                avgViewTime: 9.3,
+                interactions: 8
+            },
+            {
+                id: 9,
+                name: "Yoliseth",
+                avatar: "/api/placeholder/48/48",
+                timestamp: new Date(new Date().setHours(new Date().getHours() - 10)),
+                type: "text",
+                content: "Feliz cumpleaños a mi mejor amiga 🎂",
+                viewed: true,
+                viewCount: 73,
+                avgViewTime: 6.1,
+                interactions: 25
+            }
+        ];
+        
+        // Populate status grid
+        function populateStatusGrid() {
+            const statusGrid = document.getElementById('status-grid');
+            statusGrid.innerHTML = '';
+            
+            statusData.forEach(status => {
+                const timeAgo = getTimeAgo(status.timestamp);
+                const statusItem = document.createElement('div');
+                statusItem.className = 'status-item bg-white rounded-lg shadow p-4 cursor-pointer';
+                statusItem.setAttribute('data-id', status.id);
+                
+                statusItem.innerHTML = `
+                    <div class="flex items-center mb-3">
+                        <div class="status-ring ${status.viewed ? 'viewed' : ''}">
+                            <img src="${status.avatar}" alt="${status.name}" class="w-12 h-12 rounded-full avatar ${status.viewed ? 'viewed' : ''}">
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="font-medium">${status.name}</h3>
+                            <p class="text-xs text-gray-500">${timeAgo}</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="text-sm text-gray-700">${getStatusTypeIcon(status.type)} ${status.content}</span>
+                    </div>
+                `;
+                
+                statusItem.addEventListener('click', () => {
+                    selectStatus(status.id);
+                });
+                
+                statusGrid.appendChild(statusItem);
+            });
+            
+            logDebug(`Populated status grid with ${statusData.length} items`);
+        }
+        
+        // Helper function to get time ago string
+        function getTimeAgo(timestamp) {
+            const now = new Date();
+            const diffMs = now - timestamp;
+            const diffMins = Math.floor(diffMs / 60000);
+            
+            if (diffMins < 60) {
+                return `Hace ${diffMins} minutos`;
+            } else {
+                const diffHours = Math.floor(diffMins / 60);
+                return `Hace ${diffHours} horas`;
+            }
+        }
+        
+        // Helper function to get icon for status type
+        function getStatusTypeIcon(type) {
+            switch (type) {
+                case 'text':
+                    return '📝';
+                case 'image':
+                    return '🖼️';
+                case 'video':
+                    return '🎬';
+                case 'link':
+                    return '🔗';
+                default:
+                    return '📱';
+            }
+        }
+        
+        // Select a status to view details
+        function selectStatus(statusId) {
+            const status = statusData.find(s => s.id === statusId);
+            if (!status) {
+                logDebug(`Status with ID ${statusId} not found`);
+                return;
+            }
+            
+            // Update selected status UI
+            const selectedStatus = document.getElementById('selected-status');
+            const statusDetails = document.getElementById('status-details');
+            
+            selectedStatus.innerHTML = `
+                <div class="w-full">
+                    <div class="flex items-center mb-4">
+                        <img src="${status.avatar}" alt="${status.name}" class="w-16 h-16 rounded-full">
+                        <div class="ml-4">
+                            <h3 class="font-semibold text-lg">${status.name}</h3>
+                            <p class="text-sm text-gray-500">${status.timestamp.toLocaleString()}</p>
+                        </div>
+                    </div>
+                    <div class="bg-gray-200 rounded-lg p-6 flex items-center justify-center">
+                        <div class="text-center">
+                            <div class="text-4xl mb-2">${getStatusTypeIcon(status.type)}</div>
+                            <p class="text-lg">${status.content}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            selectedStatus.classList.remove('flex', 'items-center', 'justify-center', 'text-gray-500');
+            statusDetails.classList.remove('hidden');
+            
+            // Update stats
+            document.getElementById('view-count').textContent = status.viewCount;
+            document.getElementById('avg-time').textContent = `${status.avgViewTime.toFixed(1)}s`;
+            document.getElementById('interaction-count').textContent = status.interactions;
+            
+            // Create view time chart
+            try {
+                createViewTimeChart(status);
+                logDebug(`Selected status ID ${statusId} and updated UI`);
+            } catch (error) {
+                logDebug(`Error creating view time chart: ${error.message}`);
+            }
+        }
+        
+        // Create view time chart for selected status
+        function createViewTimeChart(status) {
+            const ctx = document.getElementById('viewTimeChart').getContext('2d');
+            
+            // Generate some fake view time data
+            const viewTimes = [];
+            for (let i = 0; i < status.viewCount; i++) {
+                // Random view time around the average with some variation
+                const viewTime = Math.max(1, status.avgViewTime + (Math.random() * 6 - 3));
+                viewTimes.push(viewTime);
+            }
+            
+            // Count frequencies for histogram
+            const bins = [0, 3, 6, 9, 12, 15, 18, 21, 24];
+            const frequencies = Array(bins.length - 1).fill(0);
+            
+            viewTimes.forEach(time => {
+                for (let i = 0; i < bins.length - 1; i++) {
+                    if (time >= bins[i] && time < bins[i + 1]) {
+                        frequencies[i]++;
+                        break;
+                    }
+                }
+            });
+            
+            // Destroy previous chart if it exists
+            if (window.viewTimeChart) {
+                window.viewTimeChart.destroy();
+            }
+            
+            // Create new chart
+            window.viewTimeChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: bins.slice(0, -1).map((bin, i) => `${bin}-${bins[i+1]}s`),
+                    datasets: [{
+                        label: 'Distribución de Tiempo de Visualización',
+                        data: frequencies,
+                        backgroundColor: 'rgba(37, 211, 102, 0.6)',
+                        borderColor: 'rgba(37, 211, 102, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 2,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Número de Vistas'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Tiempo de Visualización (segundos)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Initialize analytics charts
+        function initAnalyticsCharts() {
+            // Hourly Activity Chart
+            const hourlyCtx = document.getElementById('hourlyActivityChart').getContext('2d');
+            const hours = Array.from({length: 24}, (_, i) => i);
+            
+            // Generate fake hourly data with a pattern
+            const hourlyData = hours.map(hour => {
+                // More activity in the morning and evening
+                if (hour >= 7 && hour <= 9) return Math.floor(Math.random() * 20) + 30;
+                if (hour >= 18 && hour <= 22) return Math.floor(Math.random() * 25) + 35;
+                return Math.floor(Math.random() * 15) + 5;
+            });
+            
+            if (window.hourlyActivityChart) {
+                window.hourlyActivityChart.destroy();
+            }
+            
+            window.hourlyActivityChart = new Chart(hourlyCtx, {
+                type: 'line',
+                data: {
+                    labels: hours.map(h => `${h}:00`),
+                    datasets: [{
+                        label: 'Actividad',
+                        data: hourlyData,
+                        borderColor: 'rgba(37, 211, 102, 1)',
+                        backgroundColor: 'rgba(37, 211, 102, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 1.5,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Número de Vistas'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Content Type Chart
+            const contentTypeCtx = document.getElementById('contentTypeChart').getContext('2d');
+            
+            // Count status types
+            const typeCounts = {
+                text: statusData.filter(s => s.type === 'text').length,
+                image: statusData.filter(s => s.type === 'image').length,
+                video: statusData.filter(s => s.type === 'video').length,
+                link: statusData.filter(s => s.type === 'link').length
+            };
+            
+            if (window.contentTypeChart) {
+                window.contentTypeChart.destroy();
+            }
+            
+            window.contentTypeChart = new Chart(contentTypeCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Texto', 'Imagen', 'Video', 'Enlace'],
+                    datasets: [{
+                        data: [typeCounts.text, typeCounts.image, typeCounts.video, typeCounts.link],
+                        backgroundColor: [
+                            'rgba(54, 162, 235, 0.7)',
+                            'rgba(255, 99, 132, 0.7)',
+                            'rgba(255, 206, 86, 0.7)',
+                            'rgba(75, 192, 192, 0.7)'
+                        ],
+                        borderColor: [
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(255, 99, 132, 1)',
+                            'rgba(255, 206, 86, 1)',
+                            'rgba(75, 192, 192, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 1.5,
+                    plugins: {
+                        legend: {
+                            position: 'right'
+                        }
+                    }
+                }
+            });
+            
+            // Contact Engagement Chart
+            const contactEngagementCtx = document.getElementById('contactEngagementChart').getContext('2d');
+            
+            // Sort contacts by engagement (interactions / views)
+            const contactEngagement = statusData.map(status => ({
+                name: status.name,
+                engagement: (status.interactions / status.viewCount) * 100
+            })).sort((a, b) => b.engagement - a.engagement).slice(0, 8);
+            
+            if (window.contactEngagementChart) {
+                window.contactEngagementChart.destroy();
+            }
+            
+            window.contactEngagementChart = new Chart(contactEngagementCtx, {
+                type: 'bar',
+                data: {
+                    labels: contactEngagement.map(c => c.name),
+                    datasets: [{
+                        label: 'Engagement (%)',
+                        data: contactEngagement.map(c => c.engagement.toFixed(1)),
+                        backgroundColor: 'rgba(153, 102, 255, 0.7)',
+                        borderColor: 'rgba(153, 102, 255, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 1.5,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Engagement (%)'
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Activity Trend Chart
+            const activityTrendCtx = document.getElementById('activityTrendChart').getContext('2d');
+            
+            // Generate fake daily data for the past week
+            const days = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+            const viewsData = [42, 38, 65, 47, 83, 95, 76];
+            const interactionsData = [8, 5, 12, 9, 18, 25, 16];
+            
+            if (window.activityTrendChart) {
+                window.activityTrendChart.destroy();
+            }
+            
+            window.activityTrendChart = new Chart(activityTrendCtx, {
+                type: 'line',
+                data: {
+                    labels: days,
+                    datasets: [
+                        {
+                            label: 'Vistas',
+                            data: viewsData,
+                            borderColor: 'rgba(37, 211, 102, 1)',
+                            backgroundColor: 'rgba(37, 211, 102, 0.1)',
+                            fill: false,
+                            tension: 0.4,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'Interacciones',
+                            data: interactionsData,
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                            fill: false,
+                            tension: 0.4,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 1.5,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: 'Vistas'
+                            }
+                        },
+                        y1: {
+                            beginAtZero: true,
+                            position: 'right',
+                            grid: {
+                                drawOnChartArea: false
+                            },
+                            title: {
+                                display: true,
+                                text: 'Interacciones'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Simulation functionality
+        const runSimulationBtn = document.getElementById('run-simulation');
+        const durationInput = document.getElementById('duration');
+        const durationValue = document.getElementById('duration-value');
+        
+        // Update duration value display
+        durationInput.addEventListener('input', () => {
+            durationValue.textContent = `${durationInput.value}s`;
+        });
+        
+        // Run simulation
+        runSimulationBtn.addEventListener('click', () => {
+            const contentType = document.getElementById('content-type').value;
+            const postTime = document.getElementById('post-time').value;
+            const duration = parseInt(durationInput.value);
+            const interactivity = document.getElementById('interactivity').value;
+            
+            // Show loading state
+            document.getElementById('simulation-placeholder').classList.add('hidden');
+            document.getElementById('simulation-results').classList.add('hidden');
+            document.getElementById('simulation-loading').classList.remove('hidden');
+            
+            logDebug(`Running simulation with: type=${contentType}, time=${postTime}, duration=${duration}, interactivity=${interactivity}`);
+            
+            // Simulate processing time
+            setTimeout(() => {
+                try {
+                    runStatusSimulation(contentType, postTime, duration, interactivity);
+                    
+                    // Hide loading, show results
+                    document.getElementById('simulation-loading').classList.add('hidden');
+                    document.getElementById('simulation-results').classList.remove('hidden');
+                } catch (error) {
+                    logDebug(`Error in simulation: ${error.message}`);
+                    alert('Error en la simulación. Consulta la consola para más detalles.');
+                }
+            }, 1500);
+        });
+        
+        // Run the status simulation with given parameters
+        function runStatusSimulation(contentType, postTime, duration, interactivity) {
+            // Base values for different parameters
+            const baseValues = {
+                contentType: {
+                    text: { views: 30, avgTime: 4, replies: 3, engagement: 10 },
+                    image: { views: 45, avgTime: 7, replies: 5, engagement: 15 },
+                    video: { views: 60, avgTime: 12, replies: 8, engagement: 20 },
+                    link: { views: 25, avgTime: 5, replies: 2, engagement: 8 }
+                },
+                postTime: {
+                    morning: { multiplier: 1.2 },
+                    afternoon: { multiplier: 1.0 },
+                    evening: { multiplier: 1.5 },
+                    night: { multiplier: 0.7 }
+                },
+                duration: {
+                    // Multiplier based on duration (optimal around 15-20s)
+                    multiplier: duration <= 5 ? 0.7 : 
+                                duration <= 10 ? 0.9 : 
+                                duration <= 20 ? 1.2 : 
+                                duration <= 30 ? 1.0 : 
+                                duration <= 45 ? 0.8 : 0.6
+                },
+                interactivity: {
+                    low: { engagementMultiplier: 0.7 },
+                    medium: { engagementMultiplier: 1.2 },
+                    high: { engagementMultiplier: 1.8 }
+                }
+            };
+            
+            // Calculate results
+            const base = baseValues.contentType[contentType];
+            const timeMultiplier = baseValues.postTime[postTime].multiplier;
+            const durationMultiplier = baseValues.duration.multiplier;
+            const engagementMultiplier = baseValues.interactivity[interactivity].engagementMultiplier;
+            
+            // Apply some randomness
+            const randomFactor = 0.9 + Math.random() * 0.2;
+            
+            const views = Math.round(base.views * timeMultiplier * randomFactor);
+            const avgTime = Math.min(duration, base.avgTime * durationMultiplier * randomFactor);
+            const replies = Math.round(base.replies * engagementMultiplier * randomFactor);
+            const engagement = Math.round(base.engagement * engagementMultiplier * randomFactor);
+            
+            // Update UI with results
+            document.getElementById('sim-views').textContent = views;
+            document.getElementById('sim-avg-time').textContent = `${avgTime.toFixed(1)}s`;
+            document.getElementById('sim-replies').textContent = replies;
+            document.getElementById('sim-engagement').textContent = `${engagement}%`;
+            
+            // Create simulation charts
+            createViewDistributionChart(views, avgTime);
+            createComparisonChart(views, avgTime, replies, engagement);
+            
+            // Generate recommendations
+            generateRecommendations(contentType, postTime, duration, interactivity, views, engagement);
+            
+            logDebug(`Simulation results: views=${views}, avgTime=${avgTime.toFixed(1)}, replies=${replies}, engagement=${engagement}%`);
+        }
+        
+        // Create view distribution chart for simulation
+        function createViewDistributionChart(views, avgTime) {
+            const ctx = document.getElementById('viewDistributionChart').getContext('2d');
+            
+            // Generate a normal distribution of view times
+            const viewTimes = [];
+            for (let i = 0; i < views; i++) {
+                // Box-Muller transform for normal distribution
+                const u1 = Math.random();
+                const u2 = Math.random();
+                const z0 = Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(2.0 * Math.PI * u2);
+                
+                // Scale to our desired mean and standard deviation
+                const viewTime = Math.max(1, avgTime + z0 * (avgTime / 4));
+                viewTimes.push(viewTime);
+            }
+            
+            // Count frequencies for histogram
+            const maxTime = Math.max(...viewTimes, avgTime * 2);
+            const binSize = maxTime / 8;
+            const bins = Array.from({length: 9}, (_, i) => i * binSize);
+            const frequencies = Array(bins.length - 1).fill(0);
+            
+            viewTimes.forEach(time => {
+                for (let i = 0; i < bins.length - 1; i++) {
+                    if (time >= bins[i] && time < bins[i + 1]) {
+                        frequencies[i]++;
+                        break;
+                    }
+                }
+            });
+            
+            // Destroy previous chart if it exists
+            if (window.viewDistributionChart) {
+                window.viewDistributionChart.destroy();
+            }
+            
+            // Create new chart
+            window.viewDistributionChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: bins.slice(0, -1).map((bin, i) => `${bin.toFixed(1)}-${bins[i+1].toFixed(1)}s`),
+                    datasets: [{
+                        label: 'Número de Vistas',
+                        data: frequencies,
+                        backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 1.5,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Create comparison chart for simulation
+        function createComparisonChart(views, avgTime, replies, engagement) {
+            const ctx = document.getElementById('comparisonChart').getContext('2d');
+            
+            // Average values for comparison
+            const avgValues = {
+                views: 50,
+                avgTime: 8,
+                replies: 7,
+                engagement: 15
+            };
+            
+            // Calculate percentages relative to average
+            const percentages = {
+                views: (views / avgValues.views) * 100,
+                avgTime: (avgTime / avgValues.avgTime) * 100,
+                replies: (replies / avgValues.replies) * 100,
+                engagement: (engagement / avgValues.engagement) * 100
+            };
+            
+            // Destroy previous chart if it exists
+            if (window.comparisonChart) {
+                window.comparisonChart.destroy();
+            }
+            
+            // Create new chart
+            window.comparisonChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['Vistas', 'Tiempo Promedio', 'Respuestas', 'Engagement'],
+                    datasets: [{
+                        label: 'Tu Estado (% del promedio)',
+                        data: [
+                            percentages.views,
+                            percentages.avgTime,
+                            percentages.replies,
+                            percentages.engagement
+                        ],
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        pointBackgroundColor: 'rgba(255, 99, 132, 1)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgba(255, 99, 132, 1)'
+                    }, {
+                        label: 'Promedio',
+                        data: [100, 100, 100, 100],
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        pointBackgroundColor: 'rgba(54, 162, 235, 1)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgba(54, 162, 235, 1)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    aspectRatio: 1.5,
+                    scales: {
+                        r: {
+                            angleLines: {
+                                display: true
+                            },
+                            suggestedMin: 0,
+                            suggestedMax: 150
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Generate recommendations based on simulation parameters and results
+        function generateRecommendations(contentType, postTime, duration, interactivity, views, engagement) {
+            const recommendationsEl = document.getElementById('recommendations');
+            recommendationsEl.innerHTML = '';
+            
+            const recommendations = [];
+            
+            // Content type recommendations
+            if (contentType === 'text' && views < 40) {
+                recommendations.push('Considera usar imágenes o videos para aumentar el engagement. Los estados de texto suelen tener menos retención.');
+            }
+            
+            if (contentType === 'link' && views < 30) {
+                recommendations.push('Añade un contexto o descripción atractiva a tus enlaces para aumentar el interés.');
+            }
+            
+            if (contentType === 'video' && duration > 30) {
+                recommendations.push('Los videos más cortos (15-20 segundos) suelen tener mejor retención. Considera dividir contenido largo en partes.');
+            }
+            
+            // Post time recommendations
+            if (postTime === 'night' && views < 30) {
+                recommendations.push('Publicar durante la madrugada reduce significativamente tu alcance. Considera programar tus estados para la tarde o noche (18-22h).');
+            }
+            
+            if (postTime === 'afternoon' && engagement < 15) {
+                recommendations.push('La tarde tiene mucha competencia por atención. Prueba publicar en momentos de mayor engagement como la noche (19-21h).');
+            }
+            
+            // Duration recommendations
+            if (duration < 5) {
+                recommendations.push('Tu contenido es muy breve. Considera añadir más contexto o información para aumentar el tiempo de visualización.');
+            }
+            
+            if (duration > 45) {
+                recommendations.push('Contenido demasiado largo puede reducir la retención. Intenta mantener tus estados entre 15-30 segundos para mejor engagement.');
+            }
+            
+            // Interactivity recommendations
+            if (interactivity === 'low' && engagement < 10) {
+                recommendations.push('Añade elementos interactivos como preguntas, encuestas o llamadas a la acción para aumentar el engagement.');
+            }
+            
+            // General recommendations based on results
+            if (views < 30) {
+                recommendations.push('Tu alcance es bajo. Considera publicar con más frecuencia para aumentar tu visibilidad.');
+            }
+            
+            if (engagement < 10) {
+                recommendations.push('Tu engagement es bajo. Prueba contenido más personal o relevante para tu audiencia.');
+            }
+            
+            // Add recommendations to UI
+            if (recommendations.length === 0) {
+                recommendations.push('¡Tu configuración es óptima! Continúa con este tipo de contenido.');
+            }
+            
+            recommendations.forEach(rec => {
+                const li = document.createElement('li');
+                li.textContent = rec;
+                recommendationsEl.appendChild(li);
+            });
+            
+            logDebug(`Generated ${recommendations.length} recommendations`);
+        }
+        
+        // Learn tab functionality
+        const conceptItems = document.querySelectorAll('.concept-item');
+        const strategyItems = document.querySelectorAll('.strategy-item');
+        const conceptContent = document.getElementById('concept-content');
+        const strategyContent = document.getElementById('strategy-content');
+        const learnPlaceholder = document.getElementById('learn-placeholder');
+        
+        // Concept data
+        const conceptData = {
+            'what-is-status': {
+                title: '¿Qué son los estados?',
+                description: `
+                    <p>Los estados de WhatsApp son una función que permite compartir actualizaciones temporales con tus contactos. Estas actualizaciones pueden ser texto, fotos, videos o GIFs que desaparecen después de 24 horas.</p>
+                    
+                    <p>Características principales:</p>
+                    <ul>
+                        <li><strong>Temporalidad:</strong> Disponibles solo por 24 horas</li>
+                        <li><strong>Formatos:</strong> Texto, imágenes, videos, GIFs y enlaces</li>
+                        <li><strong>Privacidad:</strong> Control sobre quién puede ver tus estados</li>
+                        <li><strong>Interacción:</strong> Los contactos pueden responder a tus estados</li>
+                    </ul>
+                    
+                    <p>Los estados fueron introducidos en 2017, inspirados en las "historias" de otras plataformas como Snapchat e Instagram, y se han convertido en una forma popular de compartir momentos cotidianos sin la permanencia de los mensajes regulares.</p>
+                `
+            },
+            'status-lifecycle': {
+                title: 'Ciclo de vida de un estado',
+                description: `
+                    <p>El ciclo de vida de un estado de WhatsApp sigue un patrón predecible desde su creación hasta su desaparición:</p>
+                    
+                    <ol>
+                        <li><strong>Creación:</strong> El usuario crea y publica un estado</li>
+                        <li><strong>Notificación:</strong> Los contactos reciben una notificación (si tienen habilitadas las notificaciones)</li>
+                        <li><strong>Periodo activo:</strong> El estado permanece visible durante 24 horas exactas desde el momento de publicación</li>
+                        <li><strong>Visualizaciones:</strong> Los contactos pueden ver el estado durante este periodo</li>
+                        <li><strong>Interacciones:</strong> Los contactos pueden responder al estado</li>
+                        <li><strong>Expiración:</strong> Después de 24 horas, el estado desaparece automáticamente</li>
+                    </ol>
+                    
+                    <p>Durante este ciclo, el creador puede:</p>
+                    <ul>
+                        <li>Ver quién ha visto su estado</li>
+                        <li>Eliminar el estado antes de que expire</li>
+                        <li>Responder a las reacciones recibidas</li>
+                        <li>Destacar el estado como mensaje destacado (solo visible para el creador)</li>
+                    </ul>
+                    
+                    <p>Este ciclo efímero crea un sentido de urgencia que fomenta visualizaciones más frecuentes y reduce la presión de crear contenido "perfecto" al ser temporal.</p>
+                `
+            },
+            'privacy': {
+                title: 'Privacidad y visibilidad',
+                description: `
+                    <p>WhatsApp ofrece controles de privacidad específicos para los estados, permitiéndote decidir quién puede ver tus actualizaciones:</p>
+                    
+                    <ul>
+                        <li><strong>Mis contactos:</strong> Todos tus contactos pueden ver tus estados (configuración predeterminada)</li>
+                        <li><strong>Mis contactos, excepto...</strong> Todos tus contactos excepto las personas que selecciones</li>
+                        <li><strong>Solo compartir con...</strong> Solo los contactos que selecciones específicamente</li>
+                    </ul>
+                    
+                    <p>Características adicionales de privacidad:</p>
+                    
+                    <ul>
+                        <li><strong>Confirmaciones de lectura:</strong> Puedes ver quién ha visto tu estado</li>
+                        <li><strong>Modo sigiloso:</strong> Puedes ver estados sin que el creador sepa que los has visto (desactivando las confirmaciones de lectura, pero esto también afecta a los chats)</li>
+                        <li><strong>Bloqueo:</strong> Si bloqueas a un contacto, no podrá ver tus estados</li>
+                    </ul>
+                    
+                    <p>Es importante recordar que aunque los estados desaparecen después de 24 horas, los espectadores pueden tomar capturas de pantalla o grabar la pantalla. Por lo tanto, nunca debes compartir información sensible o privada en tus estados.</p>
+                `
+            },
+            'content-types': {
+                title: 'Tipos de contenido',
+                description: `
+                    <p>WhatsApp permite varios tipos de contenido en los estados, cada uno con características y limitaciones específicas:</p>
+                    
+                    <ul>
+                        <li>
+                            <strong>Texto:</strong>
+                            <ul>
+                                <li>Fondo personalizable con colores o imágenes</li>
+                                <li>Fuentes y estilos limitados</li>
+                                <li>Límite de caracteres (aproximadamente 700)</li>
+                                <li>Posibilidad de añadir emojis</li>
+                            </ul>
+                        </li>
+                        <li>
+                            <strong>Imágenes:</strong>
+                            <ul>
+                                <li>Fotos de la galería o tomadas en el momento</li>
+                                <li>Posibilidad de añadir texto, dibujos, stickers, emojis</li>
+                                <li>Recorte y ajuste básico</li>
+                                <li>Múltiples imágenes en secuencia</li>
+                            </ul>
+                        </li>
+                        <li>
+                            <strong>Videos:</strong>
+                            <ul>
+                                <li>Duración máxima de 30 segundos</li>
+                                <li>Videos de la galería o grabados en el momento</li>
+                                <li>Posibilidad de añadir texto, dibujos, stickers</li>
+                                <li>Recorte básico de duración</li>
+                            </ul>
+                        </li>
+                        <li>
+                            <strong>GIFs:</strong>
+                            <ul>
+                                <li>Animaciones cortas en bucle</li>
+                                <li>Selección desde la galería o biblioteca integrada</li>
+                                <li>Posibilidad de añadir texto y dibujos</li>
+                            </ul>
+                        </li>
+                        <li>
+                            <strong>Enlaces:</strong>
+                            <ul>
+                                <li>Vista previa automática con imagen y descripción</li>
+                                <li>Posibilidad de añadir texto adicional</li>
+                                <li>Redirección al hacer clic</li>
+                            </ul>
+                        </li>
+                    </ul>
+                    
+                    <p>Cada tipo de contenido tiene diferentes tasas de engagement, siendo generalmente los videos los que generan mayor interacción, seguidos por las imágenes, GIFs, enlaces y finalmente texto.</p>
+                `
+            },
+            'engagement': {
+                title: 'Engagement y métricas',
+                description: `
+                    <p>Aunque WhatsApp ofrece métricas limitadas comparado con otras redes sociales, hay varias formas de medir el engagement de tus estados:</p>
+                    
+                    <h4 class="font-semibold mt-4 mb-2">Métricas disponibles:</h4>
+                    
+                    <ul>
+                        <li><strong>Vistas:</strong> Número total de contactos que han visto tu estado</li>
+                        <li><strong>Lista de visualizadores:</strong> Quién específicamente ha visto tu estado</li>
+                        <li><strong>Respuestas:</strong> Número de personas que han respondido a tu estado</li>
+                    </ul>
+                    
+                    <h4 class="font-semibold mt-4 mb-2">Métricas derivadas (calculadas manualmente):</h4>
+                    
+                    <ul>
+                        <li><strong>Tasa de visualización:</strong> Porcentaje de tus contactos que ven tus estados</li>
+                        <li><strong>Tasa de respuesta:</strong> Porcentaje de visualizadores que responden</li>
+                        <li><strong>Tiempo hasta la visualización:</strong> Cuánto tardan tus contactos en ver tu estado</li>
+                        <li><strong>Retención:</strong> Contactos que ven todos tus estados consistentemente</li>
+                    </ul>
+                    
+                    <p>Para un análisis más profundo, puedes llevar un registro manual de estas métricas a lo largo del tiempo para identificar patrones y tendencias en el comportamiento de tu audiencia.</p>
+                    
+                    <p>Recuerda que el engagement en WhatsApp es generalmente más personal y de mayor calidad que en otras plataformas, ya que se trata de conexiones más cercanas.</p>
+                `
+            }
+        };
+        
+        // Strategy data
+        const strategyData = {
+            'timing': {
+                title: 'Momento óptimo de publicación',
+                description: `
+                    <p>El momento en que publicas tus estados puede tener un impacto significativo en su alcance y engagement:</p>
+                    
+                    <h4 class="font-semibold mt-4 mb-2">Patrones generales de actividad:</h4>
+                    
+                    <ul>
+                        <li><strong>Mañana (7-9 AM):</strong> Alto engagement mientras las personas comienzan su día</li>
+                        <li><strong>Mediodía (12-2 PM):</strong> Pico moderado durante la hora del almuerzo</li>
+                        <li><strong>Tarde (5-7 PM):</strong> Aumento de actividad al finalizar la jornada laboral</li>
+                        <li><strong>Noche (8-10 PM):</strong> Máximo engagement cuando las personas se relajan en casa</li>
+                    </ul>
+                    
+                    <h4 class="font-semibold mt-4 mb-2">Consideraciones estratégicas:</h4>
+                    
+                    <ul>
+                        <li><strong>Ciclo de 24 horas:</strong> Publicar a la misma hora cada día asegura que tu estado esté disponible en los momentos de mayor actividad</li>
+                        <li><strong>Días de la semana:</strong> El engagement suele ser mayor los viernes y sábados, y menor los lunes</li>
+                        <li><strong>Competencia por atención:</strong> Evita publicar cuando muchos de tus contactos están publicando (suele ser entre 7-9 PM)</li>
+                        <li><strong>Contenido específico:</strong> Adapta el momento según el tipo de contenido (ej. noticias por la mañana, entretenimiento por la noche)</li>
+                    </ul>
+                    
+                    <p>La mejor estrategia es experimentar con diferentes horarios y llevar un registro de las visualizaciones para identificar los momentos óptimos específicos para tu red de contactos.</p>
+                `
+            },
+            'content-quality': {
+                title: 'Calidad vs. Cantidad',
+                description: `
+                    <p>En el contexto de los estados de WhatsApp, el equilibrio entre calidad y cantidad es crucial:</p>
+                    
+                    <h4 class="font-semibold mt-4 mb-2">Enfoque en calidad:</h4>
+                    
+                    <ul>
+                        <li><strong>Relevancia:</strong> Contenido que resuene con tus contactos específicos</li>
+                        <li><strong>Originalidad:</strong> Contenido único y personal genera más engagement</li>
+                        <li><strong>Producción:</strong> Buena iluminación, audio claro y encuadre adecuado</li>
+                        <li><strong>Concisión:</strong> Mensajes claros y directos, especialmente en videos</li>
+                    </ul>
+                    
+                    <h4 class="font-semibold mt-4 mb-2">Consideraciones de cantidad:</h4>
+                    
+                    <ul>
+                        <li><strong>Frecuencia óptima:</strong> 1-3 estados por día para la mayoría de usuarios</li>
+                        <li><strong>Saturación:</strong> Publicar más de 5 estados diarios puede reducir las visualizaciones</li>
+                        <li><strong>Consistencia:</strong> Mejor publicar regularmente que en ráfagas esporádicas</li>
+                        <li><strong>Secuencias:</strong> Si publicas múltiples estados relacionados, hazlo en secuencia lógica</li>
+                    </ul>
+                    
+                    <p>La estrategia recomendada es priorizar la calidad sobre la cantidad, publicando contenido valioso de forma consistente pero no excesiva. Observa cómo reaccionan tus contactos y ajusta tu frecuencia según sus respuestas.</p>
+                    
+                    <p>Recuerda que en WhatsApp, a diferencia de otras redes sociales, el exceso de publicaciones puede percibirse como intrusivo debido a la naturaleza más personal de la plataforma.</p>
+                `
+            },
+            'storytelling': {
+                title: 'Narrativa y storytelling',
+                description: `
+                    <p>El storytelling efectivo puede transformar tus estados de simples actualizaciones a contenido memorable:</p>
+                    
+                    <h4 class="font-semibold mt-4 mb-2">Elementos de una buena narrativa:</h4>
+                    
+                    <ul>
+                        <li><strong>Estructura:</strong> Inicio que capte la atención, desarrollo y conclusión clara</li>
+                        <li><strong>Conflicto o intriga:</strong> Plantear una pregunta o situación que genere curiosidad</li>
+                        <li><strong>Autenticidad:</strong> Historias personales y genuinas generan mayor conexión</li>
+                        <li><strong>Emoción:</strong> Contenido que evoque emociones (humor, sorpresa, inspiración)</li>
+                    </ul>
+                    
+                    <h4 class="font-semibold mt-4 mb-2">Técnicas para estados:</h4>
+                    
+                    <ul>
+                        <li><strong>Secuencia de estados:</strong> Usar múltiples estados para contar una historia completa</li>
+                        <li><strong>Anticipación:</strong> Crear expectativa sobre algo que revelarás más tarde</li>
+                        <li><strong>Contexto visual:</strong> Usar la cámara para mostrar el entorno y crear inmersión</li>
+                        <li><strong>Narración en primera persona:</strong> Compartir experiencias desde tu perspectiva</li>
+                    </ul>
+                    
+                    <p>Ejemplos efectivos:</p>
+                    <ul>
+                        <li>Mostrar el proceso de creación de algo desde el inicio hasta el resultado final</li>
+                        <li>Compartir una experiencia del día con un aprendizaje o reflexión al final</li>
+                        <li>Plantear un problema y luego mostrar la solución</li>
+                    </ul>
+                    
+                    <p>El storytelling efectivo no requiere producción elaborada, sino autenticidad y una estructura que mantenga el interés de principio a fin.</p>
+                `
+            },
+            'interaction': {
+                title: 'Fomentar la interacción',
+                description: `
+                    <p>Aumentar las interacciones con tus estados puede fortalecer conexiones y generar conversaciones valiosas:</p>
+                    
+                    <h4 class="font-semibold mt-4 mb-2">Técnicas para fomentar respuestas:</h4>
+                    
+                    <ul>
+                        <li><strong>Preguntas directas:</strong> "¿Qué opinan sobre...?", "¿Alguien ha probado...?"</li>
+                        <li><strong>Encuestas informales:</strong> "A o B, ¿cuál prefieren?"</li>
+                        <li><strong>Solicitar consejos:</strong> "Necesito recomendaciones para..."</li>
+                        <li><strong>Compartir conocimiento:</strong> "Tip del día: ..." (invita a compartir más tips)</li>
+                        <li><strong>Contenido controversial:</strong> Opiniones que generen debate (con moderación)</li>
+                    </ul>
+                    
+                    <h4 class="font-semibold mt-4 mb-2">Elementos visuales interactivos:</h4>
+                    
+                    <ul>
+                        <li><strong>Acertijos o retos:</strong> "¿Puedes encontrar el error en esta imagen?"</li>
+                        <li><strong>Antes/Después:</strong> Mostrar transformaciones que generen curiosidad</li>
+                        <li><strong>Contenido incompleto:</strong> Mostrar algo parcialmente para generar preguntas</li>
+                        <li><strong>Llamadas a la acción:</strong> "Responde con un emoji si estás de acuerdo"</li>
+                    </ul>
+                    
+                    <h4 class="font-semibold mt-4 mb-2">Seguimiento efectivo:</h4>
+                    
+                    <ul>
+                        <li><strong>Responder rápidamente:</strong> Valorar cada interacción respondiendo pronto</li>
+                        <li><strong>Agradecer participación:</strong> Reconocer a quienes interactúan</li>
+                        <li><strong>Compartir resultados:</strong> Si hiciste una pregunta, comparte un resumen de respuestas</li>
+                        <li><strong>Continuar la conversación:</strong> Usar las respuestas como base para nuevos estados</li>
+                    </ul>
+                    
+                    <p>Recuerda que la interacción en WhatsApp es privada (solo tú ves las respuestas), lo que puede hacer que las personas se sientan más cómodas compartiendo opiniones sinceras.</p>
+                `
+            },
+            'consistency': {
+                title: 'Consistencia y frecuencia',
+                description: `
+                    <p>La consistencia es clave para mantener el engagement a largo plazo con tus estados de WhatsApp:</p>
+                    
+                    <h4 class="font-semibold mt-4 mb-2">Aspectos de la consistencia:</h4>
+                    
+                    <ul>
+                        <li><strong>Frecuencia regular:</strong> Establecer un ritmo predecible de publicación</li>
+                        <li><strong>Estilo reconocible:</strong> Desarrollar un estilo visual o tono de comunicación distintivo</li>
+                        <li><strong>Temáticas recurrentes:</strong> Crear secciones o temas que tus contactos puedan anticipar</li>
+                        <li><strong>Calidad constante:</strong> Mantener un estándar de calidad en todo tu contenido</li>
+                    </ul>
+                    
+                    <h4 class="font-semibold mt-4 mb-2">Estrategias de planificación:</h4>
+                    
+                    <ul>
+                        <li><strong>Calendario de contenidos:</strong> Planificar tus estados con anticipación</li>
+                        <li><strong>Temas por días:</strong> Asignar temáticas específicas a diferentes días de la semana</li>
+                        <li><strong>Banco de contenido:</strong> Crear contenido por adelantado para mantener la consistencia</li>
+                        <li><strong>Rutinas de creación:</strong> Establecer momentos específicos para crear y publicar</li>
+                    </ul>
+                    
+                    <h4 class="font-semibold mt-4 mb-2">Equilibrio y sostenibilidad:</h4>
+                    
+                    <ul>
+                        <li><strong>Ritmo sostenible:</strong> Elegir una frecuencia que puedas mantener a largo plazo</li>
+                        <li><strong>Descansos planificados:</strong> Comunicar cuando vayas a hacer pausas prolongadas</li>
+                        <li><strong>Evolución gradual:</strong> Permitir que tu estilo evolucione naturalmente sin cambios bruscos</li>
+                        <li><strong>Feedback loop:</strong> Ajustar tu estrategia basándote en las respuestas recibidas</li>
+                    </ul>
+                    
+                    <p>La consistencia genera expectativa y habitúa a tus contactos a prestar atención a tus estados, mientras que los cambios drásticos o las ausencias prolongadas sin explicación pueden reducir el engagement.</p>
+                `
+            }
+        };
+        
+        // Show concept content
+        conceptItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const conceptId = item.getAttribute('data-concept');
+                const concept = conceptData[conceptId];
+                
+                if (concept) {
+                    document.getElementById('concept-title').textContent = concept.title;
+                    document.getElementById('concept-description').innerHTML = concept.description;
+                    
+                    conceptContent.classList.remove('hidden');
+                    strategyContent.classList.add('hidden');
+                    learnPlaceholder.classList.add('hidden');
+                    
+                    // Highlight selected item
+                    conceptItems.forEach(i => i.classList.remove('bg-gray-100', 'font-medium'));
+                    item.classList.add('bg-gray-100', 'font-medium');
+                    
+                    logDebug(`Displayed concept: ${concept.title}`);
+                }
+            });
+        });
+        
+        // Show strategy content
+        strategyItems.forEach(item => {
+            item.addEventListener('click', () => {
+                const strategyId = item.getAttribute('data-strategy');
+                const strategy = strategyData[strategyId];
+                
+                if (strategy) {
+                    document.getElementById('strategy-title').textContent = strategy.title;
+                    document.getElementById('strategy-description').innerHTML = strategy.description;
+                    
+                    strategyContent.classList.remove('hidden');
+                    conceptContent.classList.add('hidden');
+                    learnPlaceholder.classList.add('hidden');
+                    
+                    // Highlight selected item
+                    strategyItems.forEach(i => i.classList.remove('bg-gray-100', 'font-medium'));
+                    item.classList.add('bg-gray-100', 'font-medium');
+                    
+                    logDebug(`Displayed strategy: ${strategy.title}`);
+                }
+            });
+        });
+        
+        // Refresh button functionality
+        document.getElementById('refresh-btn').addEventListener('click', () => {
+            // Simulate refreshing data
+            logDebug('Refreshing data...');
+            
+            // Add some randomness to status data
+            statusData.forEach(status => {
+                status.viewCount += Math.floor(Math.random() * 5);
+                status.interactions += Math.floor(Math.random() * 2);
+                status.avgViewTime = Math.max(1, status.avgViewTime + (Math.random() * 0.4 - 0.2));
+            });
+            
+            // Repopulate UI
+            populateStatusGrid();
+            
+            // Reset selected status
+            document.getElementById('selected-status').innerHTML = 'Selecciona un estado para ver detalles';
+            document.getElementById('selected-status').classList.add('flex', 'items-center', 'justify-center', 'text-gray-500');
+            document.getElementById('status-details').classList.add('hidden');
+            
+            // Reinitialize analytics if that tab is active
+            if (document.getElementById('analytics').classList.contains('active')) {
+                initAnalyticsCharts();
+            }
+            
+            alert('Datos actualizados');
+        });
+        
+        // Initialize the application
+        function initApp() {
+            try {
+                // Populate status grid
+                populateStatusGrid();
+                
+                // Initialize analytics charts if analytics tab is active
+                if (document.getElementById('analytics').classList.contains('active')) {
+                    initAnalyticsCharts();
+                }
+                
+                logDebug('Application initialized successfully');
+            } catch (error) {
+                logDebug(`Error initializing application: ${error.message}`);
+                console.error('Initialization error:', error);
+            }
+        }
+        
+        // Start the application
+        initApp();
+    </script>
+</body>
+</html>
